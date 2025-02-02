@@ -89,12 +89,27 @@ class NgramTokenizer(Tokenizer):
         Output: [16999, 51610, 39000, 44191, 89954, 14539, 50931]
         """
         words = convert_text_to_words(text)  # Tokenize the text into words and punctuation
-        ngrams = [" ".join(words[i:i + self.n]) for i in range(len(words) - self.n + 1)]  # Generate n-grams
+        
+        # Ensure we don't generate n-grams beyond available words
+        if len(words) < self.n:
+            return []  # If not enough words, return an empty list
+        
+        ngrams = [tuple(words[i:i + self.n]) for i in range(len(words) - self.n + 1)]  # Generate n-grams as tuples
+        
+        # Filter out n-grams that were not seen in training
+        filtered_ngrams = []  # Create an empty list to store valid n-grams
+
+        for ngram in ngrams:
+            if ngram in self.token_to_id:  # Check if the n-gram exists in the trained vocabulary
+                filtered_ngrams.append(ngram)  # Add only seen n-grams to the list
+        ngrams = filtered_ngrams
 
         if return_token_ids:
+            # Return token IDs for n-grams that are in the vocabulary
             return [self.token_to_id[ngram] for ngram in ngrams if ngram in self.token_to_id]
         else:
-            return [tuple(ngram.split()) for ngram in ngrams]
+            # Return n-grams as tuples
+            return ngrams
         
         #raise Exception("TODO: Implement this method")
 
@@ -122,34 +137,23 @@ class NgramTokenizer(Tokenizer):
         # Iterate over the corpus with tqdm to show progress
         for text in tqdm(corpus, desc="Training NgramTokenizer"):
             words = convert_text_to_words(text)  # Tokenize text into words and punctuation
-            ngrams = [" ".join(words[i:i + self.n]) for i in range(len(words) - self.n + 1)]  # Generate n-grams
+            ngrams = [tuple(words[i:i + self.n]) for i in range(len(words) - self.n + 1)]  # Generate n-grams
+            
             for ngram in ngrams:
                 token_counts[ngram] += 1
 
-        # Limit vocabulary size to the most frequent n-grams if vocab_size is set
+        # If vocab_size is set, keep only the top vocab_size tokens
+        most_common_ngrams = sorted(token_counts.items(), key=lambda x: x[1], reverse=True)
         if self.vocab_size != -1:
-            # Use heapq.nlargest to get the most frequent n-grams
-            most_common_ngrams = sorted(token_counts.items(), key=lambda x: x[1], reverse=True)[:self.vocab_size]
-        else:
-            most_common_ngrams = token_counts.items()
+            most_common_ngrams = most_common_ngrams[:self.vocab_size]
 
-        # Assign unique IDs to tokens (ngrams)
+        # Assign unique IDs to tokens
         self.token_to_id = {ngram: idx for idx, (ngram, _) in enumerate(most_common_ngrams)}
         self.id_to_token = {idx: ngram for ngram, idx in self.token_to_id.items()}
-        
-        # Save the trained tokenizer using pickle for later use
-        self.save_tokenizer()
 
-        print("Training complete.")
+        print(f"Training complete. Vocabulary size: {len(self.token_to_id)}")
+
         #raise Exception("TODO: Implement this method")
-    
-    def save_tokenizer(self, filename="ngram_tokenizer.pkl"):
-        """
-        Save the tokenizer to a file using pickle.
-        """
-        with open(filename, 'wb') as f:
-            pickle.dump(self, f)
-        print(f"Tokenizer saved to {filename}")
 
     def __len__(self):
         """
