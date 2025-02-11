@@ -1,3 +1,5 @@
+# models.py
+
 from utils import SentimentExample
 from typing import List
 from collections import Counter
@@ -11,21 +13,23 @@ import gensim.downloader as api
 
 class FeatureExtractor(object):
     """
-    Base class for feature extraction. Takes a text and returns an indexed list of features.
+    Feature extraction base type. Takes a text and returns an indexed list of features.
     """
 
     def extract_features(self, text: str) -> Counter:
         """
-        Extract features from a text.
-        :param text: Text to featurize.
-        :return: A feature vector (e.g., Counter mapping token ids to counts).
+        Extract features from a text represented as a list of words.
+        :param text: words in the example to featurize
+        :return: A feature vector. We suggest using a Counter[int], which can encode a sparse feature vector (only
+        a few indices have nonzero value) in essentially the same way as a map. However, you can use whatever data
+        structure you prefer, since this does not interact with the framework code.
         """
         raise Exception("Don't call me, call my subclasses")
 
 
 class CountFeatureExtractor(FeatureExtractor):
     """
-    Extracts count features from text. The tokenizer returns token ids and we count their occurrences.
+    Extracts count features from text - your tokenizer returns token ids; you count their occurences.
     """
 
     def __init__(self, tokenizer: Tokenizer):
@@ -35,21 +39,24 @@ class CountFeatureExtractor(FeatureExtractor):
         return len(self.tokenizer)
 
     def extract_features(self, text: str) -> Counter:
-        tokens = self.tokenizer.tokenize(text)
-        feature_counter = Counter()
-        for tok in tokens:
-            tok_id = self.tokenizer.token_to_id.get(tok)
-            if tok_id is None:
-                tok_id = self.tokenizer.token_to_id.get((tok,))
-            if tok_id is not None:
-                feature_counter[tok_id] += 1
-        return feature_counter
+        """
+        TODO: Extract count features from a text represented as a list of words.
+        The feature vector should be a Counter mapping from token ids to their counts in the text.
+
+        Example:
+        Input `text`: ["hi", "hi", "world"]
+        If `self.tokenizer.token_to_id`: {0: "hi", 1: "world", 2: "foo"}
+        Output: Counter({0: 2, 1: 1})
+        Depending on your implementation, you may also want to explicitly handle cases of unseen tokens:
+        Output: Counter({0: 2, 1: 1, 2: 0})
+        (In the above case, the token "foo" is not in the text, so its count is 0.)
+        """
+        raise Exception("TODO: Implement this method")
 
 
 class CustomFeatureExtractor(FeatureExtractor):
     """
-    Custom feature extractor that extracts features from text using a custom approach.
-    In this example, tokens are first lowercased and only tokens longer than 2 characters are counted.
+    Custom feature extractor that extracts features from a text using a custom tokenizer.
     """
 
     def __init__(self, tokenizer: Tokenizer):
@@ -60,20 +67,10 @@ class CustomFeatureExtractor(FeatureExtractor):
 
     def extract_features(self, text: str) -> Counter:
         """
-        Custom feature extraction:
-         1. Tokenize the text.
-         2. Lowercase tokens and filter out tokens with length <= 2.
-         3. Map the remaining tokens to token ids and count occurrences.
+        TODO: Implement your own custom feature extractor. The returned format should be the same as in CountFeatureExtractor,
+        a Counter mapping from feature ids to their values.
         """
-        tokens = self.tokenizer.tokenize(text)
-        feature_counter = Counter()
-        for tok in tokens:
-            tok_lower = tok.lower()
-            if len(tok_lower) > 2:
-                tok_id = self.tokenizer.token_to_id(tok_lower)
-                if tok_id is not None:
-                    feature_counter[tok_id] += 1
-        return feature_counter
+        raise Exception("TODO: Implement this method")
 
 
 class MeanPoolingWordVectorFeatureExtractor(FeatureExtractor):
@@ -84,60 +81,52 @@ class MeanPoolingWordVectorFeatureExtractor(FeatureExtractor):
         print("Word2vec model loaded")
 
     def __len__(self):
-        # the glove-twitter word vectors have 25 dimensions
+        # the glove twitter word vectors are 25 dim
         return 25
 
     def get_word_vector(self, word) -> np.ndarray:
         """
-        Get the word vector for a word from the loaded model.
-        If the word is not in the vocabulary, return None.
+        TODO: Get the word vector for a word from self.word_to_vector_model. If the word is not in the vocabulary, return None.
+        
+        Example:
+        Input `word`: "hello"
+        Output: numpy array of 25 dimensions
+        Input `word`: "328hdnsr32ion"
+        Output: None
         """
-        if word in self.word_to_vector_model:
-            return self.word_to_vector_model[word]
-        else:
-            return None
+        raise Exception("TODO: Implement this method")
 
     def extract_features(self, text: List[str]) -> Counter:
         """
-        Extract mean pooling word vector features from a text.
-        Steps:
-         1. Tokenize the text.
-         2. For each word, obtain its word vector.
-         3. Average all available word vectors to get a mean vector.
-         4. Convert the mean vector to a Counter mapping (as required by the framework).
-           (Normally, you would use the vector directly, but we need a Counter here.)
+        TODO: Extract mean pooling word vector features from a text represented as a list of words.
+        Detailed instructions:
+        1. Tokenize the text into words using self.tokenizer.tokenize.
+        2. For each word, get its word vector (using get_word_vector method).
+        3. Average all of the word vectors to get the mean pooling vector.
+        4. Convert the mean pooling vector to a Counter mapping from token ids to their counts.
+        Note: this last step is important because the framework requires features to be a Counter mapping
+        from token ids to their counts, normally you would not need to do this conversion.
+        Remember to ignore words that do not have a word vector.
         """
-        tokens = self.tokenizer.tokenize(text)
-        vectors = []
-        for word in tokens:
-            vec = self.get_word_vector(word)
-            if vec is not None:
-                vectors.append(vec)
-        if len(vectors) == 0:
-            # If no word vectors found, return a zero vector in Counter format.
-            mean_vector = np.zeros(len(self), dtype=np.float64)
-        else:
-            mean_vector = np.mean(vectors, axis=0)
-        # Convert the mean vector to a Counter mapping index to value.
-        return Counter({i: mean_vector[i] for i in range(len(mean_vector))})
+        raise Exception("TODO: Implement this method")
 
 
 class SentimentClassifier(object):
     """
-    Base class for sentiment classifiers.
+    Sentiment classifier base type
     """
 
     def predict(self, text: List[str]) -> int:
         """
-        :param text: List of words in the text.
-        :return: 0 for negative or 1 for positive sentiment.
+        :param text: words (List[str]) in the text to classify
+        :return: Either 0 for negative class or 1 for positive class
         """
         raise Exception("Don't call me, call my subclasses")
 
 
 class TrivialSentimentClassifier(SentimentClassifier):
     """
-    A trivial sentiment classifier that always predicts the positive class.
+    Sentiment classifier that always predicts the positive class.
     """
 
     def predict(self, text: List[str]) -> int:
@@ -146,7 +135,8 @@ class TrivialSentimentClassifier(SentimentClassifier):
 
 def sigmoid(x: float) -> float:
     """
-    Numerically stable sigmoid function.
+    Numerically stable sigmoid function, avoids overflow.
+    A utility function for the logistic regression classifier.
     """
     if x < 0:
         return np.exp(x) / (1 + np.exp(x))
@@ -155,33 +145,43 @@ def sigmoid(x: float) -> float:
 
 class LogisticRegressionClassifier(SentimentClassifier):
     """
-    Logistic regression classifier that uses a featurizer to convert text into feature vectors.
-    It learns a binary classifier with weights and bias.
+    Logistic regression classifier, uses a featurizer to transform text into feature vectors and learns a binary classifier.
     """
 
     def __init__(self, featurizer: FeatureExtractor):
         """
-        Initialize the logistic regression classifier with weights and bias set to zero.
+        Initialize the logistic regression classifier.
+        Weights and bias are initialized to 0, and stored as attributes of the class.
+        The featurizer is also stored as an attribute of the class.
+        The dtype of the weights and bias is np.float64, don't change this.
         """
         self.featurizer = featurizer
+        # weights are a fixed size numpy array, where size is the number of features in the featurizer
+        # init weights to 0, could do small random numbers but it's common practice to do 0
         self.weights = np.zeros(len(self.featurizer), dtype=np.float64)
         self.bias = 0
 
     def predict(self, text: str) -> int:
         """
-        Predict the sentiment of a text.
-        Steps:
-         1. Extract features from the text.
-         2. Compute the score as a dot product of weights and features plus bias.
-         3. Compute the sigmoid of the score.
-         4. Return 1 if the sigmoid output is >= 0.5, otherwise return 0.
+        TODO: Predict the sentiment of a text, should be either 0 or 1.
+        You will need to use the sigmoid function from above, which is already implemented.
+        Detailed instructions:
+        1. Extract features from the text using self.featurizer.extract_features.
+        2. Compute the score as the (sum of the product of the weights and the features) plus the bias.
+        3. Compute the sigmoid of the score.
+        4. Return 1 if the sigmoid score is greater than or equal to 0.5, otherwise return 0.
+        
+        Example:
+        Input `text`: "hi hi world"
+        If `self.weights`: [1, 2, 10]
+        If `self.bias`: 1
+        If `self.featurizer.extract_features(text)`: Counter({0: 2, 1: 1, 2:0})
+        Intermediate steps:
+        score = 1*2 + 2*1 + 10*0 + 1 = 5
+        sigmoid_score = sigmoid(5) = 0.993...
+        Output: 1
         """
-        features = self.featurizer.extract_features(text)
-        score = self.bias
-        for feat_id, feat_value in features.items():
-            score += self.weights[feat_id] * feat_value
-        prob = sigmoid(score)
-        return 1 if prob >= 0.5 else 0
+        raise Exception("TODO: Implement this method")
 
     def set_weights(self, weights: np.ndarray):
         """
@@ -201,54 +201,46 @@ class LogisticRegressionClassifier(SentimentClassifier):
     def get_bias(self):
         return self.bias
 
-    def training_step(self, batch_exs: List[SentimentExample], learning_rate: float, l2_lambda: float = 0.001):
+    def training_step(self, batch_exs: List[SentimentExample], learning_rate: float):
         """
-        Perform a single training step on a batch of examples.  Update the weights and bias using the gradient of the loss.
+        TODO: Update the weights and bias of the model from a batch of examples, using the learning rate.
+        Detailed instructions:
+        1. Iterate over the batch of examples.
+            a. For each example, extract features and predict the label.
+            b. Calculate the loss for the example.
+        2. Update the weights and bias using the loss, using the learning rate and the batch size.
+        
+        Example:
+        Input `batch_exs`: [SentimentExample(words="hi hi world", label=1), SentimentExample(words="foo bar", label=0)]
+        Input `learning_rate`: 0.5
+        If `self.weights`: [-2, 1, 2]
+        If `self.bias`: -1
+        If `self.featurizer.extract_features(batch_exs[0].words)`: Counter({0: 2, 1: 1})
+        If `self.featurizer.extract_features(batch_exs[1].words)`: Counter({2: 1})
+        Output:
+        set `self.weights`: [-1.5, 1.25, 1.75]
+        set `self.bias`: -0.25
         """
-        grad_w = np.zeros_like(self.weights, dtype=np.float64)
-        grad_b = 0.0
-        misclassified_count = 0
-
-
-        for ex in batch_exs:
-            feats = self.featurizer.extract_features(ex.words)
-            score = self.bias + sum(self.weights[feat_id] * feat_value for feat_id, feat_value in feats.items())
-            p = sigmoid(score)
-            predicted_label = 1 if p >= 0.5 else 0
-
-            #  skip if predicted label is correct
-            if predicted_label == ex.label:
-                continue
-
-            # cal
-            error = predicted_label - ex.label
-            grad_b += error
-            for feat_id, feat_value in feats.items():
-                grad_w[feat_id] += error * feat_value
-            misclassified_count += 1
-
-        if misclassified_count > 0:
-            # L2 regularization
-            grad_w -= np.round(l2_lambda * self.weights,1)
-
-            # Update weights and bias
-            self.bias -= learning_rate * grad_b
-            self.weights -= learning_rate * grad_w / misclassified_count
+        raise Exception("TODO: Implement this method")
 
 
 def get_accuracy(predictions: List[int], labels: List[int]) -> float:
     """
-    Calculate the accuracy of predictions.
+    Calculate the accuracy of the predictions.
     """
-    num_correct = sum(1 for i in range(len(predictions)) if predictions[i] == labels[i])
-    return num_correct / len(predictions)
+    num_correct = 0
+    num_total = len(predictions)
+    for i in range(num_total):
+        if predictions[i] == labels[i]:
+            num_correct += 1
+    return num_correct / num_total
 
 
 def run_model_over_dataset(
     model: SentimentClassifier, dataset: List[SentimentExample]
 ) -> List[int]:
     """
-    Run the model over the entire dataset and return the list of predictions.
+    Run the model over a dataset and return the predictions.
     """
     predictions = []
     for ex in dataset:
@@ -265,53 +257,85 @@ def train_logistic_regression(
     epochs: int = 10,
 ) -> LogisticRegressionClassifier:
     """
-    Train a logistic regression model.
-    Steps:
-     1. Initialize the model and variables to track the best dev accuracy.
-     2. Use an exponential decay learning rate scheduler.
-     3. For each epoch, shuffle the training examples and update the model in mini-batches.
-     4. Evaluate on the dev set and save the model parameters if improved.
-     5. After training, restore the best model parameters.
+    TODO: Train a logistic regression model.
+    :param train_exs: training set, List of SentimentExample objects
+    :param feat_extractor: feature extractor to use
+    :return: trained LogisticRegressionClassifier model
     """
-    # Initialize model
-    model = LogisticRegressionClassifier(feat_extractor)
-    best_dev_acc = 0.0
-    best_weights = None
-    best_bias = 0.0
 
-    # Exponential decay learning rate scheduler
-    scheduler = lambda epoch: learning_rate * (0.95 ** epoch)
+    ##########################################
+    # Initialize the model and
+    # any other variables you want to keep track of
+    ##########################################
+    raise Exception("TODO: Implement this section")
+
+    ##########################################
+    # Learning rate scheduler
+    # We don't ask you to implement this, but modifying the 
+    # learning rate is a common technique to help with convergence.
+    ##########################################
+    # exponential decay learning rate scheduler
+    scheduler = lambda epoch: learning_rate * (0.95**epoch)
 
     pbar = tqdm(range(epochs))
     for epoch in pbar:
-        # Shuffle the training examples (create a new randomly ordered list)
-        shuffled_train_exs = np.random.permutation(train_exs)
-        cur_learning_rate = scheduler(epoch)
 
-        # Iterate over mini-batches
+        ##########################################
+        # Shuffle the training examples
+        # Instead of modifying the train_exs list,
+        # just set shuffled_train_exs to a new list 
+        # with the same elements but in a random order
+        # This step helps prevent overfitting
+        ##########################################
+        shuffled_train_exs = []
+        raise Exception("TODO: Implement this section")
+
+        ##########################################
+        # Iterate over batches of training examples
+        ##########################################
         for i in range(0, len(shuffled_train_exs), batch_size):
-            batch_exs = shuffled_train_exs[i: i + batch_size]
-            model.training_step(batch_exs, cur_learning_rate)
+            batch_exs = shuffled_train_exs[i : i + batch_size]
 
-        # Evaluate on the development set
-        dev_preds = run_model_over_dataset(model, dev_exs)
-        dev_labels = [ex.label for ex in dev_exs]
-        cur_dev_acc = get_accuracy(dev_preds, dev_labels)
+            ##########################################
+            # Get the current learning rate from your scheduler
+            ##########################################
+            cur_learning_rate = scheduler(epoch)
 
-        # Save best model if performance improved
-        if cur_dev_acc > best_dev_acc:
-            best_dev_acc = cur_dev_acc
-            best_weights = np.copy(model.get_weights())
-            best_bias = model.get_bias()
+            ##########################################
+            # Update the weights and bias of the model using this batch of examples and the current learning rate
+            # (hint: this is running a training step with a batch of examples)
+            ##########################################
+            raise Exception("TODO: Implement this section")
 
-        # Log metrics to the progress bar
-        metrics = {"best_dev_acc": best_dev_acc, "cur_dev_acc": cur_dev_acc, "epoch": epoch}
-        pbar.set_postfix(metrics)
+        ##########################################
+        # Evaluate on the dev set
+        # save the best model so far by dev accuracy
+        # you may find the run_model_over_dataset 
+        # and get_accuracy functions helpful
+        ##########################################
+        raise Exception("TODO: Implement this section")
 
-    # Restore the best model parameters
-    if best_weights is not None:
-        model.set_weights(best_weights)
-        model.set_bias(best_bias)
+        ##########################################
+        # Log any metrics you want here, tqdm will
+        # pass the metrics dictionary to the progress bar (pbar)
+        # your metrics should probably include the best dev accuracy, current dev accuracy
+        # and look something like this:
+        # metrics = {"best_dev_acc": 0.9, "cur_dev_acc": 0.5}
+        # this step is helpful for debugging and making sure you are saving the best model so far
+        # at the end of training, your 'best_dev_acc' should be the best accuracy on the dev set
+        ##########################################
+        metrics = {}
+        raise Exception("TODO: Implement this section")
+
+        # if metrics is not empty, update the progress bar
+        if len(metrics) > 0:
+            pbar.set_postfix(metrics)
+
+    ##########################################
+    # Set the weights and bias of the model to
+    # the best model so far by dev accuracy
+    ##########################################
+    raise Exception("TODO: Implement this section")
 
     return model
 
@@ -326,8 +350,13 @@ def train_model(
     epochs: int,
 ) -> SentimentClassifier:
     """
-    Main entry point for training the sentiment classifier.
-    Depending on args, it instantiates a feature extractor and trains either a trivial or logistic regression model.
+    Main entry point for your modifications. Trains and returns one of several models depending on the args
+    passed in from the main method. You may modify this function, but probably will not need to.
+    :param args: args bundle from sentiment_classifier.py
+    :param train_exs: training set, List of SentimentExample objects
+    :param dev_exs: dev set, List of SentimentExample objects. You can use this for validation throughout the training
+    process, but you should *not* directly train on this data.
+    :return: trained SentimentClassifier model, of whichever type is specified
     """
     # Initialize feature extractor
     if args.feats == "COUNTER":
@@ -336,10 +365,8 @@ def train_model(
         feat_extractor = MeanPoolingWordVectorFeatureExtractor(tokenizer)
     elif args.feats == "CUSTOM":
         feat_extractor = CustomFeatureExtractor(tokenizer)
-    else:
-        raise Exception("Unknown feature type")
 
-    # Train the model based on specified type
+    # Train the model
     if args.model == "TRIVIAL":
         model = TrivialSentimentClassifier()
     elif args.model == "LR":
